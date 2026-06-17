@@ -62,6 +62,7 @@ tbody tr{border-bottom:1px solid #0f1520;cursor:pointer;transition:background .1
 tbody tr:hover{background:#0d1525}
 tbody tr.sel{background:#0a1e35}
 tbody tr.edited td:first-child{border-left:2px solid var(--warn)}
+td.warn-text{color:var(--warn)}
 td{padding:6px 10px;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
 .pill{display:inline-block;background:#0a1a2a;color:#00aacc;border-radius:3px;padding:1px 5px;font-size:9px}
 .t-status{padding:5px 12px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);display:flex;gap:12px;flex-shrink:0;background:var(--panel)}
@@ -419,6 +420,20 @@ function cv(r){
   let v=r.trim().replace(/^IFC[A-Z]+MEASURE\(|^IFCINTEGER\(|^IFCREAL\(|^IFCTEXT\('|^IFCLABEL\('/i,'');
   return v.replace(/\)$|'\)$/,'').trim().replace(/^'|'$/g,'');
 }
+// HTML-Escaping gegen kaputtes Layout / Injection durch IFC-Werte & Nutzereingaben
+const _ESC={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>_ESC[c]);}
+// STEP-Kodierung: ASCII direkt (Apostroph verdoppeln, Backslash escapen),
+// Nicht-ASCII als \X2\<UTF-16BE-Hex>\X0\ (IFC-konform für Umlaute etc.)
+function ifcEscape(s){
+  let out='',i=0;s=String(s);
+  while(i<s.length){
+    const code=s.charCodeAt(i);
+    if(code<128){const ch=s[i];out+=ch==="'"?"''":ch==='\\'?'\\\\':ch;i++;}
+    else{let hex='';while(i<s.length&&s.charCodeAt(i)>=128){hex+=s.charCodeAt(i).toString(16).toUpperCase().padStart(4,'0');i++;}out+='\\X2\\'+hex+'\\X0\\';}
+  }
+  return out;
+}
 
 function parseIFC(text){
   setP(10,'Punktlisten...');
@@ -719,7 +734,7 @@ function updateV3D(){
   Object.entries(posG).sort((a,b)=>{const an=parseInt(a[0]),bn=parseInt(b[0]);return isNaN(an)||isNaN(bn)?a[0].localeCompare(b[0]):an-bn;}).forEach(([g,d])=>{
     const item=document.createElement('div');item.className='si';
     const lbl=g.length>18?g.slice(0,16)+'...':g;
-    item.innerHTML='<div class="si-dot" style="background:'+d.color+'"></div><span title="'+g+'">'+lbl+'</span><span class="si-cnt">'+d.cnt+'</span>';
+    item.innerHTML='<div class="si-dot" style="background:'+d.color+'"></div><span title="'+esc(g)+'">'+esc(lbl)+'</span><span class="si-cnt">'+d.cnt+'</span>';
     item.addEventListener('click',()=>{
       document.querySelectorAll('#vList .si').forEach(i=>i.classList.remove('active'));item.classList.add('active');
       meshes.forEach(m=>{m.userData.hidden=m.userData.grp!==g||(markedHidden&&marked.has(m.userData.id));applyVis(m);});
@@ -784,10 +799,10 @@ function updateMP(){
   let html='<div class="vir"><span class="vik">Stabanzahl</span><span class="viv">'+Math.round(bc)+' Stk.</span></div>';
   for(const k of sumKeys){
     if(k==='BarCount'||k==='Stabanzahl_Verlegung')continue;
-    if(totals[k]!==undefined)html+='<div class="vir"><span class="vik">'+k+'</span><span class="viv">'+fmtVal(k,totals[k])+'</span></div>';
+    if(totals[k]!==undefined)html+='<div class="vir"><span class="vik">'+esc(k)+'</span><span class="viv">'+esc(fmtVal(k,totals[k]))+'</span></div>';
   }
   const pe=Object.entries(posCnts).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
-  if(pe.length<=6)pe.forEach(([g,c])=>{html+='<div class="vir"><span class="vik">Pos. '+g+'</span><span class="viv" style="color:#ff9966">'+c+'x</span></div>';});
+  if(pe.length<=6)pe.forEach(([g,c])=>{html+='<div class="vir"><span class="vik">Pos. '+esc(g)+'</span><span class="viv" style="color:#ff9966">'+c+'x</span></div>';});
   else html+='<div style="font-size:10px;color:var(--muted)">'+pe.length+' Positionen</div>';
   document.getElementById('mpRows').innerHTML=html;
 }
@@ -796,10 +811,10 @@ function showVInfo(ud){
   lastInfoUD=ud;
   const el=document.getElementById('vInfo');el.classList.add('show');
   const isMark=marked.has(ud.id);
-  document.getElementById('vInfoTitle').innerHTML='<span style="color:'+(isMark?'#ff4400':'var(--accent)')+'">'+(isMark?'? ':'')+ud.grp+'</span>';
+  document.getElementById('vInfoTitle').innerHTML='<span style="color:'+(isMark?'#ff4400':'var(--accent)')+'">'+(isMark?'? ':'')+esc(ud.grp)+'</span>';
   let html='';
   const keysToShow=infoKeys.size>0?[...infoKeys]:infoAllKeys;
-  for(const k of keysToShow)if(ud.props[k]!==undefined&&ud.props[k]!=='')html+='<div class="vir"><span class="vik">'+k+'</span><span class="viv">'+fmtVal(k,ud.props[k])+'</span></div>';
+  for(const k of keysToShow)if(ud.props[k]!==undefined&&ud.props[k]!=='')html+='<div class="vir"><span class="vik">'+esc(k)+'</span><span class="viv">'+esc(fmtVal(k,ud.props[k]))+'</span></div>';
   document.getElementById('vInfoRows').innerHTML=html||'<div style="color:var(--muted);font-size:10px">-</div>';
   document.getElementById('vMarkHint').textContent=isMark?'Nochmal tippen = entmarkieren':'Tippen = markieren';
   document.getElementById('vMarkHint').style.color=isMark?'#ff4400':'var(--muted)';
@@ -894,7 +909,7 @@ function buildGrpList(){
   sorted.forEach(([g,cnt])=>{
     const item=document.createElement('div');item.className='si'+(fltGrp===g?' active':'');
     const lbl=g.length>16?g.slice(0,14)+'...':g;
-    item.innerHTML='<div class="si-dot" style="background:'+gc(g)+'"></div><span title="'+g+'">'+lbl+'</span><span class="si-cnt">'+cnt+'</span>';
+    item.innerHTML='<div class="si-dot" style="background:'+gc(g)+'"></div><span title="'+esc(g)+'">'+esc(lbl)+'</span><span class="si-cnt">'+cnt+'</span>';
     item.addEventListener('click',()=>{fltGrp=g;buildGrpList();renderTable();});
     item.addEventListener('touchend',e=>{e.preventDefault();fltGrp=g;buildGrpList();renderTable();},{passive:false});
     gl.appendChild(item);
@@ -925,7 +940,7 @@ function buildTableHead(){
   COLS=[{k:'grp',label:gl,fn:b=>grp(b)},{k:'id',label:'ID',fn:b=>b.id},
     ...common.filter(p=>av.has(p)&&p!==grpField).map(p=>({k:p,label:p,fn:b=>b.props[p]||''})),
     {k:'s',label:'',fn:b=>editMap[b.id]?'*':''}];
-  document.getElementById('thead').innerHTML='<tr>'+COLS.map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join('')+'</tr>';
+  document.getElementById('thead').innerHTML='<tr>'+COLS.map(c=>'<th data-k="'+esc(c.k)+'">'+esc(c.label)+'</th>').join('')+'</tr>';
   document.querySelectorAll('#thead th').forEach(th=>{
     th.addEventListener('click',()=>{const k=th.dataset.k;if(sortF===k)sortA=!sortA;else{sortF=k;sortA=true;}renderTable();});
   });
@@ -945,9 +960,9 @@ function renderTable(){
     const mergedProps=Object.assign({},bar.props,edits);
     tr.innerHTML=COLS.map((col,i)=>{
       const val=col.fn(Object.assign({},bar,{props:mergedProps}));
-      if(i===0)return '<td><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:'+gc(grp(bar))+';margin-right:5px;vertical-align:middle"></span><b>'+val+'</b></td>';
-      if(col.k==='s')return '<td style="color:var(--warn);font-size:9px">'+val+'</td>';
-      return '<td class="'+(edits[col.k]?'warn-text':'')+'" title="'+val+'">'+(val||'-')+'</td>';
+      if(i===0)return '<td><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:'+gc(grp(bar))+';margin-right:5px;vertical-align:middle"></span><b>'+esc(val)+'</b></td>';
+      if(col.k==='s')return '<td style="color:var(--warn);font-size:9px">'+esc(val)+'</td>';
+      return '<td class="'+(edits[col.k]?'warn-text':'')+'" title="'+esc(val)+'">'+(esc(val)||'-')+'</td>';
     }).join('');
     tr.addEventListener('click',()=>selRow(bar.id));
     tbody.appendChild(tr);
@@ -962,22 +977,22 @@ function openDet(id){
   document.getElementById('detId').textContent=bar.id;
   document.getElementById('detPos').textContent=grp(bar);
   const edits=editMap[id]||{},body=document.getElementById('detBody');
-  body.innerHTML='<div class="d-row"><div class="d-key">GlobalId</div><div class="d-val" style="font-size:9px;color:var(--muted)">'+bar.guid+'</div></div><hr class="d-sep">';
+  body.innerHTML='<div class="d-row"><div class="d-key">GlobalId</div><div class="d-val" style="font-size:9px;color:var(--muted)">'+esc(bar.guid)+'</div></div><hr class="d-sep">';
   Object.entries(Object.assign({},bar.props,edits)).forEach(([key,val])=>{
     const ch=edits[key]!==undefined;
     const isNew=!(key in bar.props)&&ch;
     const isE=EDIT_F.has(key)||isNew;
     const div=document.createElement('div');div.className='d-row';
     if(isNew){
-      div.innerHTML='<div class="d-key" style="color:var(--ok)">'+key+'<span style="font-size:8px;margin-left:4px;opacity:.6">(neu)</span></div>'
+      div.innerHTML='<div class="d-key" style="color:var(--ok)">'+esc(key)+'<span style="font-size:8px;margin-left:4px;opacity:.6">(neu)</span></div>'
         +'<div style="display:flex;gap:4px;align-items:center">'
-        +'<input class="d-inp changed" data-key="'+key+'" data-id="'+id+'" value="'+(val||'').replace(/"/g,'&quot;')+'" style="flex:1">'
-        +'<button class="btn btn-d del-attr" data-delkey="'+key+'" style="padding:2px 7px;font-size:11px;flex-shrink:0" title="Attribut entfernen">✕</button>'
+        +'<input class="d-inp changed" data-key="'+esc(key)+'" data-id="'+esc(id)+'" value="'+esc(val||'')+'" style="flex:1">'
+        +'<button class="btn btn-d del-attr" data-delkey="'+esc(key)+'" style="padding:2px 7px;font-size:11px;flex-shrink:0" title="Attribut entfernen">✕</button>'
         +'</div>';
     } else if(isE){
-      div.innerHTML='<div class="d-key">'+key+'</div><input class="d-inp'+(ch?' changed':'')+'" data-key="'+key+'" data-id="'+id+'" value="'+(val||'').replace(/"/g,'&quot;')+'">';
+      div.innerHTML='<div class="d-key">'+esc(key)+'</div><input class="d-inp'+(ch?' changed':'')+'" data-key="'+esc(key)+'" data-id="'+esc(id)+'" value="'+esc(val||'')+'">';
     } else {
-      div.innerHTML='<div class="d-key">'+key+'</div><div class="d-val">'+(val||'-')+'</div>';
+      div.innerHTML='<div class="d-key">'+esc(key)+'</div><div class="d-val">'+(esc(val)||'-')+'</div>';
     }
     body.appendChild(div);
   });
@@ -1060,7 +1075,7 @@ function encodeIfcVal(v){
     if(Number.isInteger(n)&&!s.includes('.'))return 'IFCINTEGER('+n+')';
     return 'IFCREAL('+n+')';
   }
-  return "IFCTEXT('"+s.replace(/\\/g,'\\\\').replace(/'/g,"''")+"')";
+  return "IFCTEXT('"+ifcEscape(s)+"')";
 }
 function genIfcGuid(){
   const c='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$';
@@ -1100,7 +1115,7 @@ function dlIFC(){
       const propIds=[];
       for(const [key,val] of newAttrs){
         maxId++;
-        appendLines.push('#'+maxId+"=IFCPROPERTYSINGLEVALUE('"+key+"',$,"+encodeIfcVal(val)+",$);");
+        appendLines.push('#'+maxId+"=IFCPROPERTYSINGLEVALUE('"+ifcEscape(key)+"',$,"+encodeIfcVal(val)+",$);");
         propIds.push('#'+maxId);
       }
       maxId++;
@@ -1164,7 +1179,7 @@ function buildAbList(){
     const col=st==='ok'?'#00cc66':st==='abweichung'?'#ffaa00':'#3a4560';
     const icon=st==='ok'?'OK':st==='abweichung'?'ABW':'?';
     const item=document.createElement('div');item.className='ab-item'+(abCurPos===pos?' active':'');
-    item.innerHTML='<span style="color:'+col+';font-size:11px;font-weight:700">'+icon+'</span><div style="flex:1"><div style="font-size:11px;color:#dce8ff;font-weight:600">Pos. '+pos+'</div><div style="font-size:10px;color:var(--muted)">Soll: '+getSoll(bars)+'</div></div>'+(e.ist!==undefined?'<span style="font-size:11px;color:'+col+';font-weight:700">'+e.ist+'</span>':'');
+    item.innerHTML='<span style="color:'+col+';font-size:11px;font-weight:700">'+icon+'</span><div style="flex:1"><div style="font-size:11px;color:#dce8ff;font-weight:600">Pos. '+esc(pos)+'</div><div style="font-size:10px;color:var(--muted)">Soll: '+getSoll(bars)+'</div></div>'+(e.ist!==undefined?'<span style="font-size:11px;color:'+col+';font-weight:700">'+e.ist+'</span>':'');
     item.addEventListener('click',()=>openAbPos(pos,bars));
     item.addEventListener('touchend',e2=>{e2.preventDefault();openAbPos(pos,bars);},{passive:false});
     list.appendChild(item);
@@ -1187,7 +1202,7 @@ function openAbPos(pos,bars){
   else{fp.style.display='none';fn.textContent='';}
   const attrK=['Stabdurchmesser','NominalDiameter','BarLength','Masse','Materialguete','LAYER','BarDistance','Shape code','Werkstoff','BarCount'];
   const merged={};for(const bar of bars)for(const k of attrK)if(bar.props[k])merged[k]=bar.props[k];
-  let ah='';for(const [k,v] of Object.entries(merged))ah+='<div class="vir"><span class="vik">'+k+'</span><span class="viv">'+fmtVal(k,v)+'</span></div>';
+  let ah='';for(const [k,v] of Object.entries(merged))ah+='<div class="vir"><span class="vik">'+esc(k)+'</span><span class="viv">'+esc(fmtVal(k,v))+'</span></div>';
   document.getElementById('abAttrs').innerHTML=ah||'<div style="color:var(--muted);font-size:10px">-</div>';
   updateAbDelta();setAbBadge(saved.status||'offen');buildAbList();
 }
@@ -1260,10 +1275,10 @@ function updateAbProtokoll(){
       ?'Ø Soll:'+( e.sollDm!==undefined?e.sollDm+'mm':'–')+' Ist:'+e.istDm+'mm'+(dmAbw?' ⚠':'')
       :(e.sollDm!==undefined?'Ø Soll:'+e.sollDm+'mm':'');
     return '<div style="padding:7px 5px;border-bottom:1px solid var(--border);font-size:10px">'
-      +'<div style="display:flex;justify-content:space-between"><span style="color:#dce8ff;font-weight:700">Pos. '+e.pos+'</span><span style="color:'+col+'">'+(e.status==='ok'?'OK':'ABW')+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between"><span style="color:#dce8ff;font-weight:700">Pos. '+esc(e.pos)+'</span><span style="color:'+col+'">'+(e.status==='ok'?'OK':'ABW')+'</span></div>'
       +'<div style="color:var(--muted)">Stk: Soll '+(e.soll||'-')+' · Ist '+(e.ist!==undefined?e.ist:'-')+'</div>'
       +(dmLine?'<div style="color:'+(dmAbw?'#ff4466':dmOk?'#00cc66':'var(--muted)')+'">'+dmLine+'</div>':'')
-      +(e.kommentar?'<div style="color:var(--muted);font-style:italic">"'+e.kommentar.slice(0,35)+(e.kommentar.length>35?'...':'')+'"</div>':'')
+      +(e.kommentar?'<div style="color:var(--muted);font-style:italic">"'+esc(e.kommentar.slice(0,35))+(e.kommentar.length>35?'...':'')+'"</div>':'')
       +'<div style="color:#2a3550">'+(e.zeit||'')+'</div></div>';
   }).join('');
 }
@@ -1316,7 +1331,7 @@ document.getElementById('abPDF').addEventListener('click',()=>{
     const sollDm=e.sollDm!==undefined?e.sollDm:'-';
     const diffDm=e.istDm!==undefined&&e.sollDm!==undefined?e.istDm-e.sollDm:'-';
     const dmCol=diffDm!=='-'&&diffDm!==0?'#cc3300':'inherit';
-    rows+='<tr><td><b>Pos. '+pos+'</b></td>'
+    rows+='<tr><td><b>Pos. '+esc(pos)+'</b></td>'
       +'<td style="text-align:center">'+soll+'</td>'
       +'<td style="text-align:center">'+ist+'</td>'
       +'<td style="text-align:center;color:'+(diff!=='-'&&diff!==0?'#cc3300':'inherit')+'">'+(diff!=='-'?(diff>0?'+':'')+diff:'-')+'</td>'
@@ -1324,8 +1339,8 @@ document.getElementById('abPDF').addEventListener('click',()=>{
       +'<td style="text-align:center">'+istDm+'</td>'
       +'<td style="text-align:center;color:'+dmCol+'">'+(diffDm!=='-'?(diffDm>0?'+':'')+diffDm:'-')+'</td>'
       +'<td style="color:'+col+';font-weight:bold">'+(e.status||'offen')+'</td>'
-      +'<td>'+(e.kommentar||'')+'</td>'
-      +'<td style="font-size:10px;color:#666">'+(e.zeit||'')+'</td></tr>';
+      +'<td>'+esc(e.kommentar||'')+'</td>'
+      +'<td style="font-size:10px;color:#666">'+esc(e.zeit||'')+'</td></tr>';
   });
   // Fotoanlage aufbauen
   let fotoCards='';
@@ -1335,10 +1350,10 @@ document.getElementById('abPDF').addEventListener('click',()=>{
     const label=e.status==='ok'?'✓ BESTANDEN':e.status==='abweichung'?'⚠ ABWEICHUNG':'–';
     fotoCards+='<div style="break-inside:avoid;border:1px solid #ccc;border-radius:5px;padding:10px;background:#fafafa">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">'
-      +'<b style="font-size:13px">Pos. '+pos+'</b>'
+      +'<b style="font-size:13px">Pos. '+esc(pos)+'</b>'
       +'<span style="color:'+col+';font-weight:bold;font-size:11px">'+label+'</span></div>'
-      +'<img src="'+e.fotoUrl+'" style="width:100%;max-height:220px;object-fit:contain;display:block;border:1px solid #ddd;border-radius:3px">'
-      +(e.kommentar?'<div style="margin-top:6px;font-size:11px;color:#555;font-style:italic">"'+e.kommentar+'"</div>':'')
+      +'<img src="'+esc(e.fotoUrl)+'" style="width:100%;max-height:220px;object-fit:contain;display:block;border:1px solid #ddd;border-radius:3px">'
+      +(e.kommentar?'<div style="margin-top:6px;font-size:11px;color:#555;font-style:italic">"'+esc(e.kommentar)+'"</div>':'')
       +'<div style="margin-top:4px;font-size:10px;color:#aaa">'+( e.zeit||'')+'</div></div>';
   });
   const fotoSection=fotoCards
@@ -1353,7 +1368,7 @@ document.getElementById('abPDF').addEventListener('click',()=>{
     +'td{padding:6px 9px;border-bottom:1px solid #ddd;vertical-align:top}tr:nth-child(even){background:#f7f7f7}'
     +'@media print{.no-print{display:none}}</style></head>'
     +'<body><h1>Bewehrungsabnahme-Protokoll</h1>'
-    +'<div class="sub">Erstellt: '+datum+' · '+fname+'</div>'
+    +'<div class="sub">Erstellt: '+esc(datum)+' · '+esc(fname)+'</div>'
     +'<table><thead><tr><th>Position</th><th>Soll Stk</th><th>Ist Stk</th><th>Diff</th>'
     +'<th>Soll Ø</th><th>Ist Ø</th><th>Diff Ø</th><th>Status</th><th>Kommentar</th><th>Uhrzeit</th>'
     +'</tr></thead><tbody>'+rows+'</tbody></table>'
@@ -1384,23 +1399,23 @@ function openStichprobe(){
     row.style.cssText='background:#080a0f;border:1px solid var(--border);border-radius:7px;padding:10px 12px';
     row.innerHTML=
       '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px">'
-      +'<span style="font-size:12px;font-weight:700;color:#dce8ff">Pos. '+pos+'</span>'
+      +'<span style="font-size:12px;font-weight:700;color:#dce8ff">Pos. '+esc(pos)+'</span>'
       +'<span style="font-size:10px;color:var(--muted)">'+dmLabel+'</span></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
       // --- Anzahl ---
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Anzahl</div>'
       +'<div style="display:flex;align-items:center;gap:5px">'
-      +'<input type="number" min="0" class="stich-ist" data-pos="'+pos+'" data-soll="'+soll+'"'
+      +'<input type="number" min="0" class="stich-ist" data-pos="'+esc(pos)+'" data-soll="'+soll+'"'
       +' value="'+(saved.ist!==undefined?saved.ist:'')+'" placeholder="–"'
       +' style="'+INP+';color:var(--accent);flex:1">'
-      +'<span id="stich-d-'+pos+'" style="font-size:13px;font-weight:700;min-width:28px;text-align:right"></span></div></div>'
+      +'<span id="stich-d-'+esc(pos)+'" style="font-size:13px;font-weight:700;min-width:28px;text-align:right"></span></div></div>'
       // --- Durchmesser ---
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Ø mm</div>'
       +'<div style="display:flex;align-items:center;gap:5px">'
-      +'<input type="number" min="0" step="1" class="stich-dm" data-pos="'+pos+'" data-solldm="'+(sollDm!==null?sollDm:'')+'"'
+      +'<input type="number" min="0" step="1" class="stich-dm" data-pos="'+esc(pos)+'" data-solldm="'+(sollDm!==null?sollDm:'')+'"'
       +' value="'+(saved.istDm!==undefined?saved.istDm:'')+'" placeholder="'+(sollDm!==null?sollDm:'–')+'"'
       +' style="'+INP+';color:#e0aaff;flex:1">'
-      +'<span id="stich-dm-'+pos+'" style="font-size:13px;font-weight:700;min-width:28px;text-align:right"></span></div></div>'
+      +'<span id="stich-dm-'+esc(pos)+'" style="font-size:13px;font-weight:700;min-width:28px;text-align:right"></span></div></div>'
       +'</div>';
     body.appendChild(row);
   }
