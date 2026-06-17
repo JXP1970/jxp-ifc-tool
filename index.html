@@ -1933,10 +1933,47 @@ function makeDraggable(el,handle){
   },{passive:false});
   document.addEventListener('touchend',end);
 }
+
+// ── Resize-Griff (Maus + Touch; CSS resize:both greift auf iPad nicht) ──────
+function makeResizable(el,minW,minH){
+  minW=minW||150;minH=minH||90;
+  const grip=document.createElement('div');
+  grip.style.cssText='position:absolute;right:0;bottom:0;width:20px;height:20px;'
+    +'cursor:nwse-resize;z-index:22;touch-action:none;border-bottom-right-radius:8px;'
+    +'background:linear-gradient(135deg,transparent 45%,var(--accent) 45%,var(--accent) 60%,transparent 60%,transparent 75%,var(--accent) 75%);opacity:.55';
+  el.appendChild(grip);
+  let sw,sh,sx,sy,rz=false;
+  function prep(cx,cy){
+    const r=el.getBoundingClientRect();
+    const pr=el.offsetParent?el.offsetParent.getBoundingClientRect():{left:0,top:0};
+    // auf links/oben-Verankerung umstellen, damit Wachstum nach unten-rechts geht
+    el.style.left=(r.left-pr.left)+'px';el.style.top=(r.top-pr.top)+'px';
+    el.style.right='auto';el.style.bottom='auto';
+    el.style.maxWidth='none';el.style.maxHeight='none';el.style.overflow='auto';
+    sw=r.width;sh=r.height;sx=cx;sy=cy;rz=true;el.style.zIndex=20;
+  }
+  function mv(cx,cy){
+    if(!rz)return;
+    el.style.width =Math.max(minW,sw+(cx-sx))+'px';
+    el.style.height=Math.max(minH,sh+(cy-sy))+'px';
+  }
+  function end(){rz=false;}
+  grip.addEventListener('mousedown',e=>{e.preventDefault();e.stopPropagation();prep(e.clientX,e.clientY);});
+  document.addEventListener('mousemove',e=>{if(rz)mv(e.clientX,e.clientY);});
+  document.addEventListener('mouseup',end);
+  grip.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;e.preventDefault();e.stopPropagation();prep(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+  grip.addEventListener('touchmove',e=>{if(!rz||e.touches.length!==1)return;e.preventDefault();mv(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+  document.addEventListener('touchend',end);
+}
+
 makeDraggable(document.getElementById('vInfo'),        document.getElementById('vInfoHdr'));
 makeDraggable(document.getElementById('mp'),           document.getElementById('mpHdr'));
 makeDraggable(document.getElementById('vInfoSettings'),document.getElementById('vInfoSettingsHdr'));
 makeDraggable(document.getElementById('mpSettings'),   document.getElementById('mpSettingsHdr'));
+makeResizable(document.getElementById('vInfo'),         170,120);
+makeResizable(document.getElementById('mp'),            190,150);
+makeResizable(document.getElementById('vInfoSettings'), 200,150);
+makeResizable(document.getElementById('mpSettings'),    200,150);
 
 </script>
 </body>
