@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>IFC Bewehrungsabnahme</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -25,7 +25,7 @@ header{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab:hover{color:var(--text)}
 /* LAYOUT */
-.app{display:flex;flex-direction:column;height:100vh}
+.app{display:flex;flex-direction:column;height:100dvh}
 .panels{flex:1;overflow:hidden;position:relative}
 .panel{display:none;position:absolute;inset:0;overflow:hidden}
 .panel.active{display:flex}
@@ -280,7 +280,7 @@ select.sb-inp{appearance:none}
         <div id="abFilterNote" style="display:none;font-size:10px;color:var(--accent);margin-top:2px">⬚ Aus Markierung</div>
       </div>
       <div class="sb-list" id="abList"></div>
-      <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px">
+      <div style="padding:8px 12px;padding-bottom:calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px">
         <button class="btn btn-p" id="abCSV" style="width:100%;padding:7px">⬇ CSV</button>
         <button class="btn btn-s" id="abPDF" style="width:100%;padding:7px">⬇ PDF</button>
       </div>
@@ -571,6 +571,7 @@ function grp(b){
 }
 
 let scene,camera,renderer,oc,meshes=[],posG={};
+let lastTouchEnd=0; // unterdrückt den vom Browser nach touchend erzeugten Synthetik-Click (iPad-Doppel-Tap-Fix)
 const MARK_COL=new THREE.Color(0xff4400);
 const marked=new Set();
 let markedHidden=false,ghostMode=false;
@@ -672,7 +673,8 @@ function initThree(){
   function rz(){const w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==w||canvas.height!==h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}}
   function loop(){requestAnimationFrame(loop);rz();oc.update();renderer.render(scene,camera);updateMeasureLabels();}
   loop();
-  canvas.addEventListener('click',e=>{if(!boxMode)doRaycast(e.clientX,e.clientY);});
+  canvas.addEventListener('touchend',()=>{lastTouchEnd=Date.now();},{passive:true});
+  canvas.addEventListener('click',e=>{if(Date.now()-lastTouchEnd<700)return;if(!boxMode)doRaycast(e.clientX,e.clientY);});
 }
 
 function build3D(objs){
