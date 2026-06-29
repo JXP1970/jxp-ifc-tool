@@ -418,7 +418,8 @@ function gc(k){if(!cmap[k])cmap[k]=PAL[ci++%PAL.length];return cmap[k];}
 function resetColors(){ci=0;Object.keys(cmap).forEach(k=>delete cmap[k]);}
 
 function exType(text,type){
-  const r={}, re=new RegExp('(#\\d+)='+type+'\\(','g'); let m;
+  // Toleriert Leerzeichen um '=' und vor '(' (z.B. "#60 = IFCxxx (" bei DESITE-Exporten)
+  const r={}, re=new RegExp('(#\\d+)\\s*=\\s*'+type+'\\s*\\(','g'); let m;
   while((m=re.exec(text))!==null){
     const eid=m[1],start=m.index+m[0].length;
     let d=1,j=start;
@@ -452,7 +453,7 @@ function parseIFC(text){
   setP(10,'Punktlisten...');
   const ptl={};
   for(const [eid,args] of Object.entries(exType(text,'IFCCARTESIANPOINTLIST3D'))){
-    const pts=[]; const re=/\(([-\d.E+]+),([-\d.E+]+),([-\d.E+]+)\)/g; let pm;
+    const pts=[]; const re=/\(\s*([-\d.E+]+)\s*,\s*([-\d.E+]+)\s*,\s*([-\d.E+]+)\s*\)/g; let pm;
     while((pm=re.exec(args))!==null) pts.push([parseFloat(pm[1]),parseFloat(pm[2]),parseFloat(pm[3])]);
     ptl[eid]=pts;
   }
@@ -460,7 +461,7 @@ function parseIFC(text){
   const fsets={};
   for(const [eid,args] of Object.entries(exType(text,'IFCTRIANGULATEDFACESET'))){
     const plId=args.match(/#\d+/)?.[0];
-    const tris=[]; const re=/\((\d+),(\d+),(\d+)\)/g; let tm;
+    const tris=[]; const re=/\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/g; let tm;
     while((tm=re.exec(args))!==null) tris.push([parseInt(tm[1])-1,parseInt(tm[2])-1,parseInt(tm[3])-1]);
     fsets[eid]={plId,tris};
   }
@@ -472,6 +473,14 @@ function parseIFC(text){
   const prods={};
   for(const [eid,args] of Object.entries(exType(text,'IFCPRODUCTDEFINITIONSHAPE'))){
     const m=args.match(/\(([^)]+)\)\s*$/); if(m) prods[eid]=[...m[1].matchAll(/#\d+/g)].map(x=>x[0]);
+  }
+  // Darstellungs-Layer: IFCPRESENTATIONLAYERASSIGNMENT('Name',$,(#repItems),$)
+  // → ordnet jedem referenzierten ShapeRep den Layernamen zu (für Layer-Filter).
+  const rep2layer={};
+  for(const [,args] of Object.entries(exType(text,'IFCPRESENTATIONLAYERASSIGNMENT'))){
+    const nm=(args.match(/'([^']*)'/)||[])[1]||'';
+    const m=args.match(/\(([^)]*)\)/);
+    if(nm&&m)for(const rid of [...m[1].matchAll(/#\d+/g)].map(x=>x[0]))rep2layer[rid]=nm;
   }
   setP(45,'Properties...');
   const props={};
@@ -511,6 +520,10 @@ function parseIFC(text){
     const guid=sv(parts[0]),name=sv(parts[2])||'ReinforcingBar',shapeId=parts[6]?.trim();
     const ap={};const propEids={};
     for(const psid of (el2ps[eid]||[])){const ps=psets[psid];if(!ps)continue;for(const pid of ps.propIds){const p=props[pid];if(p?.name){ap[p.name]=p.value;propEids[p.name]=pid;}}}
+    // Darstellungs-Layer als LAYER-Feld ergänzen, falls keine LAYER-Property existiert
+    if(ap['LAYER']===undefined&&shapeId&&prods[shapeId]){
+      for(const rid of prods[shapeId]){if(rep2layer[rid]){ap['LAYER']=rep2layer[rid];break;}}
+    }
     let fsId=null;
     if(shapeId&&prods[shapeId]){for(const rid of prods[shapeId]){if(reps[rid]){for(const iid of reps[rid]){if(fsets[iid]){fsId=iid;break;}}if(fsId)break;}}}
     let geo=null;
@@ -2013,8 +2026,13 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.4';
+const APP_VERSION='1.5';
 const APP_CHANGELOG=[
+  {v:'1.5', date:'2026-06-29', notes:[
+    'IFC mit Leerzeichen-Formatierung (z.B. „#60 = IFCxxx (…)“ aus DESITE) wird jetzt gelesen – vorher „keine Objekte gefunden“',
+    'Geometrie-Parsing toleriert Leerzeichen in Punkt- und Dreieckslisten',
+    'Darstellungs-Layer (IFCPRESENTATIONLAYERASSIGNMENT) werden als LAYER-Feld nutzbar – auch Stahlbau-Dateien lassen sich nach Layern filtern',
+  ]},
   {v:'1.4', date:'2026-06-29', notes:[
     'IFC-Dateien mit Bewehrung als IFCBUILDINGELEMENTPROXY werden jetzt gelesen (z.B. Export aus DESITE / Layer-Konfigurator) – vorher „keine Objekte gefunden“',
   ]},
