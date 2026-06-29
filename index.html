@@ -181,6 +181,7 @@ select.sb-inp{appearance:none}
     <div class="toolbar">
       <input class="t-inp" id="search" placeholder="Suche…">
       <select class="t-sel" id="fieldFlt"><option value="">Alle Felder</option></select>
+      <select class="t-sel" id="valFlt" style="display:none"><option value="">Alle Werte</option></select>
       <button class="btn btn-s" id="btnClearFlt">✕</button>
     </div>
     <div class="tw"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
@@ -588,7 +589,7 @@ class OC{
   fitTo(box){const c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z);this.target.copy(c);this.sph.radius=d*1.8;this.sph.phi=Math.PI/3;this.sph.theta=Math.PI/6;this.sync();}
 }
 
-let BARS=[],editMap={},selId=null,fltGrp=null,srch='',fldFlt='',sortF='grp',sortA=true,fname='',COLS=[],rawIFC='';
+let BARS=[],editMap={},selId=null,fltGrp=null,srch='',fldFlt='',valFlt='',sortF='grp',sortA=true,fname='',COLS=[],rawIFC='';
 let boxMode=false,isolateMode=false,measureMode=false;
 let grpField='Pos_Nr.';
 function grp(b){
@@ -648,6 +649,7 @@ async function loadFile(file){
   [...allFields].sort().forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;if(k===grpField)o.selected=true;gb.appendChild(o);});
   const ff=document.getElementById('fieldFlt');ff.innerHTML='<option value="">Alle Felder</option>';
   [...allFields].sort().forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;ff.appendChild(o);});
+  srch='';fldFlt='';valFlt='';document.getElementById('search').value='';populateValFlt();
   infoAllKeys=[...allFields].sort();
   sumAllKeys=[...allFields].filter(k=>BARS.some(b=>!isNaN(parseFloat(b.props[k])))).sort();
   setP(85,'3D-Szene...');await tick();
@@ -902,8 +904,21 @@ document.getElementById('groupBy').addEventListener('change',()=>{
 });
 document.getElementById('grpSearch').addEventListener('input',buildGrpList);
 document.getElementById('search').addEventListener('input',()=>{srch=document.getElementById('search').value;renderTable();});
-document.getElementById('fieldFlt').addEventListener('change',()=>{fldFlt=document.getElementById('fieldFlt').value;renderTable();});
-document.getElementById('btnClearFlt').addEventListener('click',()=>{document.getElementById('search').value='';document.getElementById('fieldFlt').value='';srch='';fldFlt='';fltGrp=null;buildGrpList();renderTable();});
+document.getElementById('fieldFlt').addEventListener('change',()=>{fldFlt=document.getElementById('fieldFlt').value;valFlt='';populateValFlt();renderTable();});
+document.getElementById('valFlt').addEventListener('change',()=>{valFlt=document.getElementById('valFlt').value;renderTable();});
+document.getElementById('btnClearFlt').addEventListener('click',()=>{document.getElementById('search').value='';document.getElementById('fieldFlt').value='';srch='';fldFlt='';valFlt='';populateValFlt();fltGrp=null;buildGrpList();renderTable();});
+
+// Wert-Filter: zeigt die vorhandenen Werte des gewählten Feldes als Dropdown
+function populateValFlt(){
+  const vf=document.getElementById('valFlt');
+  if(!fldFlt){vf.style.display='none';vf.innerHTML='<option value="">Alle Werte</option>';return;}
+  const vals=new Set();
+  BARS.forEach(b=>{const v=Object.assign({},b.props,editMap[b.id]||{})[fldFlt];if(v!==undefined&&v!=='')vals.add(String(v));});
+  const sorted=[...vals].sort((a,b)=>{const an=parseFloat(a),bn=parseFloat(b);return(!isNaN(an)&&!isNaN(bn))?an-bn:a.localeCompare(b);});
+  vf.innerHTML='<option value="">Alle Werte ('+sorted.length+')</option>'+sorted.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+  vf.value=valFlt;
+  vf.style.display='';
+}
 document.getElementById('btnCSV').addEventListener('click',dlCSV);
 document.getElementById('btnIFC').addEventListener('click',dlIFC);
 document.getElementById('btnReset').addEventListener('click',()=>{editMap={};if(selId)openDet(selId);renderTable();toast('Reset');});
@@ -933,6 +948,7 @@ function getVis(){
   let rows=BARS.slice();
   if(fltGrp!==null)rows=rows.filter(b=>grp(b)===fltGrp);
   if(fldFlt)rows=rows.filter(b=>b.props[fldFlt]!==undefined);
+  if(fldFlt&&valFlt)rows=rows.filter(b=>String(Object.assign({},b.props,editMap[b.id]||{})[fldFlt])===valFlt);
   if(srch){const q=srch.toLowerCase();rows=rows.filter(b=>b.id.toLowerCase().includes(q)||grp(b).toLowerCase().includes(q)||Object.values(Object.assign({},b.props,editMap[b.id]||{})).some(v=>String(v).toLowerCase().includes(q)));}
   rows.sort((a,b)=>{
     const col=COLS.find(c=>c.k===sortF);
@@ -1991,8 +2007,11 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.2';
+const APP_VERSION='1.3';
 const APP_CHANGELOG=[
+  {v:'1.3', date:'2026-06-29', notes:[
+    'Editor: Wert-Filter – nach Feldauswahl erscheint ein Dropdown mit den vorhandenen Werten; Wert antippen filtert die Tabelle',
+  ]},
   {v:'1.2', date:'2026-06-29', notes:[
     'Stichprobe-Abnahme: Positions-Karten (Pos., Soll, Anzahl, Ø, Eingaben) ebenfalls 50 % größer',
   ]},
