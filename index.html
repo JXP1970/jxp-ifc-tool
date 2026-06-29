@@ -1403,7 +1403,7 @@ function openStichprobe(){
   document.getElementById('stichSub').textContent=keys.length+' Pos. · '+marked.size+' Stäbe · '+new Date().toLocaleString('de-DE');
   const body=document.getElementById('stichBody');body.innerHTML='';
   const INP='width:100%;background:#0a1320;border:1px solid var(--border);border-radius:4px;'
-    +'padding:5px 6px;font-family:inherit;font-size:15px;font-weight:700;text-align:center;outline:none;-webkit-appearance:none';
+    +'padding:7px 8px;font-family:inherit;font-size:22.5px;font-weight:700;text-align:center;outline:none;-webkit-appearance:none';
   for(const pos of keys){
     const soll=getSoll(groups[pos]),sollDm=getSollDm(groups[pos]),saved=protokoll[pos]||{};
     const dmLabel=sollDm!==null?'Soll: '+soll+' Stäbe · Ø '+sollDm+' mm':'Soll: '+soll+' Stäbe · Ø –';
@@ -1411,23 +1411,23 @@ function openStichprobe(){
     row.style.cssText='background:#080a0f;border:1px solid var(--border);border-radius:7px;padding:10px 12px';
     row.innerHTML=
       '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px">'
-      +'<span style="font-size:12px;font-weight:700;color:#dce8ff">Pos. '+esc(pos)+'</span>'
-      +'<span style="font-size:10px;color:var(--muted)">'+dmLabel+'</span></div>'
+      +'<span style="font-size:18px;font-weight:700;color:#dce8ff">Pos. '+esc(pos)+'</span>'
+      +'<span style="font-size:15px;color:var(--muted)">'+dmLabel+'</span></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
       // --- Anzahl ---
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Anzahl</div>'
+      +'<div><div style="font-size:13.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Anzahl</div>'
       +'<div style="display:flex;align-items:center;gap:5px">'
       +'<input type="number" min="0" class="stich-ist" data-pos="'+esc(pos)+'" data-soll="'+soll+'"'
       +' value="'+(saved.ist!==undefined?saved.ist:'')+'" placeholder="–"'
       +' style="'+INP+';color:var(--accent);flex:1">'
-      +'<span id="stich-d-'+esc(pos)+'" style="font-size:13px;font-weight:700;min-width:28px;text-align:right"></span></div></div>'
+      +'<span id="stich-d-'+esc(pos)+'" style="font-size:19.5px;font-weight:700;min-width:40px;text-align:right"></span></div></div>'
       // --- Durchmesser ---
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Ø mm</div>'
+      +'<div><div style="font-size:13.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Ø mm</div>'
       +'<div style="display:flex;align-items:center;gap:5px">'
       +'<input type="number" min="0" step="1" class="stich-dm" data-pos="'+esc(pos)+'" data-solldm="'+(sollDm!==null?sollDm:'')+'"'
       +' value="'+(saved.istDm!==undefined?saved.istDm:'')+'" placeholder="'+(sollDm!==null?sollDm:'–')+'"'
       +' style="'+INP+';color:#e0aaff;flex:1">'
-      +'<span id="stich-dm-'+esc(pos)+'" style="font-size:13px;font-weight:700;min-width:28px;text-align:right"></span></div></div>'
+      +'<span id="stich-dm-'+esc(pos)+'" style="font-size:19.5px;font-weight:700;min-width:40px;text-align:right"></span></div></div>'
       +'</div>';
     body.appendChild(row);
   }
@@ -1991,8 +1991,11 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.1';
+const APP_VERSION='1.2';
 const APP_CHANGELOG=[
+  {v:'1.2', date:'2026-06-29', notes:[
+    'Stichprobe-Abnahme: Positions-Karten (Pos., Soll, Anzahl, Ø, Eingaben) ebenfalls 50 % größer',
+  ]},
   {v:'1.1', date:'2026-06-29', notes:[
     'Alle Texte & Zahlen 50 % größer für bessere Lesbarkeit im Außendienst',
   ]},
