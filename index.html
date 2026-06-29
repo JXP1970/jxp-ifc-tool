@@ -500,7 +500,13 @@ function parseIFC(text){
   for(const u of um){if(u.includes('CENTI')){scale=0.01;break;}if(u.includes('MILLI')){scale=0.001;break;}}
   setP(70,'Objekte...');
   const objs=[];
-  for(const [eid,args] of Object.entries(exType(text,'IFCREINFORCINGBAR'))){
+  // Bewehrung kann je nach Export als IFCREINFORCINGBAR oder als generischer
+  // IFCBUILDINGELEMENTPROXY vorliegen (z.B. nach DESITE / Layer-Konfigurator).
+  // Beide haben dieselbe Argumentstruktur (GUID=0, Name=2, Repräsentation=6).
+  const ELEM_TYPES=['IFCREINFORCINGBAR','IFCBUILDINGELEMENTPROXY'];
+  const elemEnts={};
+  for(const t of ELEM_TYPES)Object.assign(elemEnts,exType(text,t));
+  for(const [eid,args] of Object.entries(elemEnts)){
     const parts=args.split(',');
     const guid=sv(parts[0]),name=sv(parts[2])||'ReinforcingBar',shapeId=parts[6]?.trim();
     const ap={};const propEids={};
@@ -2007,8 +2013,11 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.3';
+const APP_VERSION='1.4';
 const APP_CHANGELOG=[
+  {v:'1.4', date:'2026-06-29', notes:[
+    'IFC-Dateien mit Bewehrung als IFCBUILDINGELEMENTPROXY werden jetzt gelesen (z.B. Export aus DESITE / Layer-Konfigurator) – vorher „keine Objekte gefunden“',
+  ]},
   {v:'1.3', date:'2026-06-29', notes:[
     'Editor: Wert-Filter – nach Feldauswahl erscheint ein Dropdown mit den vorhandenen Werten; Wert antippen filtert die Tabelle',
   ]},
