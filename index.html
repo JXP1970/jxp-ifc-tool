@@ -1746,11 +1746,18 @@ function hideSnapIndicator(){
   currentSnapPoint=null;
 }
 
+// Weltgröße für eine gewünschte Bildschirmgröße (px) an einem Punkt – damit
+// Mess-Kugeln unabhängig von Zoom und Modellgröße konstant klein bleiben.
+function measWorldSize(pt,px){
+  const H=document.getElementById('vc').clientHeight||1;
+  const dist=camera.position.distanceTo(pt);
+  return px*dist*Math.tan(camera.fov*Math.PI/360)/(H/2);
+}
 function addMeasureSphere(pt,color){
-  const r=getMR();
-  const geo=new THREE.SphereGeometry(r,12,8);
+  const geo=new THREE.SphereGeometry(1,12,8);
   const mat=new THREE.MeshBasicMaterial({color,depthTest:false,transparent:true,opacity:.92});
   const s=new THREE.Mesh(geo,mat);s.position.copy(pt);s.renderOrder=999;
+  s.scale.setScalar(measWorldSize(pt,6));
   scene.add(s);return s;
 }
 
@@ -1823,6 +1830,9 @@ function updateMeasureLabels(){
     const ws=11*dist*Math.tan(camera.fov*Math.PI/360)/(H/2);
     snapIndicatorRing.scale.setScalar(ws);
   }
+  // Mess-Kugeln konstant ~6px gross halten (Zoom-/Modellgrößen-unabhängig)
+  for(const mo of measureObjects)for(const s of mo.spheres){if(s)s.scale.setScalar(measWorldSize(s.position,6));}
+  for(const p of measurePts){if(p.sphere)p.sphere.scale.setScalar(measWorldSize(p.sphere.position,6));}
   // Live measurement label (follows midpoint of rubber-band line)
   if(measureLiveLabel&&measureLiveMid&&measureLiveLabel.style.display!=='none'){
     v.copy(measureLiveMid).project(camera);
@@ -2026,8 +2036,11 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.5';
+const APP_VERSION='1.6';
 const APP_CHANGELOG=[
+  {v:'1.6', date:'2026-06-29', notes:[
+    'Mess-Punkte werden jetzt konstant klein angezeigt (feste Bildschirmgröße statt Modellgröße) – vorher bei großen Modellen viel zu groß',
+  ]},
   {v:'1.5', date:'2026-06-29', notes:[
     'IFC mit Leerzeichen-Formatierung (z.B. „#60 = IFCxxx (…)“ aus DESITE) wird jetzt gelesen – vorher „keine Objekte gefunden“',
     'Geometrie-Parsing toleriert Leerzeichen in Punkt- und Dreieckslisten',
