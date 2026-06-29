@@ -18,6 +18,17 @@ header{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(
 .logo{width:28px;height:28px;background:linear-gradient(135deg,#00c8ff,#0044ff);border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:9px;color:#fff;flex-shrink:0}
 .htitle{font-size:13px;font-weight:600;color:#dce8ff}
 .hsub{font-size:9px;color:var(--muted)}
+.vbadge{display:inline-block;font-size:9px;font-weight:700;color:var(--accent);background:#0d1b2e;border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:6px;cursor:pointer;vertical-align:middle;letter-spacing:.03em;touch-action:manipulation;user-select:none}
+.vbadge:hover{border-color:var(--accent)}
+.ver-pop{position:fixed;top:46px;left:50px;z-index:200;width:300px;max-width:calc(100vw - 24px);max-height:70vh;overflow:auto;background:var(--panel);border:1px solid var(--accent);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.55);padding:12px 13px;display:none}
+.ver-pop h4{margin:0 0 8px;font-size:12px;color:#dce8ff;display:flex;justify-content:space-between;align-items:center}
+.ver-pop .vc{font-size:9px;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:4px;padding:1px 6px}
+.ver-item{border-top:1px solid var(--border);padding:7px 0}
+.ver-item:first-of-type{border-top:none}
+.ver-item .vh{font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px}
+.ver-item .vd{font-size:9px;color:var(--muted);font-weight:400;margin-left:6px}
+.ver-item ul{margin:0;padding-left:15px}
+.ver-item li{font-size:10px;color:var(--text);line-height:1.5}
 .hright{margin-left:auto;display:flex;gap:6px;align-items:center}
 /* TABS */
 .tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -133,7 +144,8 @@ select.sb-inp{appearance:none}
 <div class="app">
 <header>
   <div class="logo">IFC</div>
-  <div><div class="htitle">IFC EDITOR + VIEWER</div><div class="hsub" id="fileInfo">Keine Datei geladen</div></div>
+  <div><div class="htitle">IFC EDITOR + VIEWER<span class="vbadge" id="verBadge" title="Versionsverlauf anzeigen">V?</span></div><div class="hsub" id="fileInfo">Keine Datei geladen</div></div>
+  <div class="ver-pop" id="verPop"></div>
   <div class="hright">
     <div id="statusBadge" style="display:none;background:#0d1525;border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:10px;color:var(--muted);display:none;align-items:center;gap:5px">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 5px var(--ok);display:inline-block"></span>
@@ -1974,6 +1986,58 @@ makeResizable(document.getElementById('vInfo'),         170,120);
 makeResizable(document.getElementById('mp'),            190,150);
 makeResizable(document.getElementById('vInfoSettings'), 200,150);
 makeResizable(document.getElementById('mpSettings'),    200,150);
+
+// ── App-Version & Changelog ──────────────────────────────────────────────────
+// Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
+// APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
+// der Versionsverlauf aktualisieren sich automatisch.
+const APP_VERSION='1.0';
+const APP_CHANGELOG=[
+  {v:'1.0', date:'2026-06-29', notes:[
+    'Messwerkzeug mit intelligentem Objektfang (Stabenden & Mitte)',
+    'Live-Distanzanzeige während des Messens',
+    'Maßstab-Autokalibrierung gegen IFC-Einheitenfehler',
+    'Abnahmeprotokoll filtert automatisch auf markierte Stäbe',
+    'Info- & Markierungs-Boxen per Griff in der Größe änderbar',
+    'Stichproben-Abnahme mit Anzahl- und Durchmesser-Prüfung',
+    'Fotos als Beweis in PDF- und CSV/ZIP-Export',
+    'IFC-Editor: Attribute ändern, hinzufügen & als IFC exportieren',
+  ]},
+];
+
+(function initVersion(){
+  const badge=document.getElementById('verBadge');
+  const pop=document.getElementById('verPop');
+  if(!badge||!pop)return;
+  badge.textContent='V'+APP_VERSION;
+  document.title='IFC Bewehrungsabnahme · V'+APP_VERSION;
+  // Versionsverlauf-Popup aufbauen
+  let html='<h4>Versionsverlauf<span class="vc" id="verClose">✕</span></h4>';
+  for(const e of APP_CHANGELOG){
+    html+='<div class="ver-item"><div class="vh">V'+e.v+'<span class="vd">'+e.date+'</span></div><ul>';
+    for(const n of e.notes)html+='<li>'+n+'</li>';
+    html+='</ul></div>';
+  }
+  pop.innerHTML=html;
+  function place(){
+    const r=badge.getBoundingClientRect();
+    pop.style.left=Math.max(8,Math.min(r.left,window.innerWidth-pop.offsetWidth-8))+'px';
+    pop.style.top=(r.bottom+6)+'px';
+  }
+  function toggle(show){
+    const open=show!==undefined?show:pop.style.display!=='block';
+    if(open){pop.style.display='block';place();}
+    else pop.style.display='none';
+  }
+  badge.addEventListener('click',()=>toggle());
+  badge.addEventListener('touchend',e=>{e.preventDefault();toggle();},{passive:false});
+  pop.addEventListener('click',e=>{if(e.target.id==='verClose')toggle(false);});
+  // Schließen bei Klick außerhalb von Badge und Popup (ohne stopPropagation)
+  document.addEventListener('click',e=>{
+    if(e.target!==badge&&!badge.contains(e.target)&&!pop.contains(e.target))toggle(false);
+  });
+  window.addEventListener('resize',()=>{if(pop.style.display==='block')place();});
+})();
 
 </script>
 </body>
