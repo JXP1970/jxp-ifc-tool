@@ -504,9 +504,20 @@ function parseIFC(text){
   let sx=0,sy=0,sz=0,n=0;
   for(const pts of Object.values(ptl)){for(const[x,y,z]of pts){sx+=x;sy+=y;sz+=z;n++;}if(n>5000)break;}
   const cx=n?sx/n:0,cy=n?sy/n:0,cz=n?sz/n:0;
+  // Längeneinheit aus IFCUNITASSIGNMENT bestimmen. IFC-Dateien deklarieren oft
+  // mehrere SI-Einheiten (METRE, MILLI, CENTI) gleichzeitig – nur die per
+  // UNITASSIGNMENT zugeordnete ist die echte Projekteinheit. Fallback: erste
+  // LENGTHUNIT-Deklaration (wie bisher).
   let scale=1;
-  const um=text.match(/IFCSIUNIT\([^)]*LENGTHUNIT[^)]*\)/g)||[];
-  for(const u of um){if(u.includes('CENTI')){scale=0.01;break;}if(u.includes('MILLI')){scale=0.001;break;}}
+  const siUnits={};
+  for(const mu of text.matchAll(/(#\d+)\s*=\s*IFCSIUNIT\s*\(([^)]*)\)/g))siUnits[mu[1]]=mu[2];
+  let lenU='';
+  const ua=text.match(/IFCUNITASSIGNMENT\s*\(\s*\(([^)]*)\)/);
+  if(ua)for(const id of [...ua[1].matchAll(/#\d+/g)].map(x=>x[0])){const u=siUnits[id];if(u&&u.includes('LENGTHUNIT')){lenU=u;break;}}
+  if(!lenU){const f=text.match(/IFCSIUNIT\s*\([^)]*LENGTHUNIT[^)]*\)/);lenU=f?f[0]:'';}
+  if(lenU.includes('MILLI'))scale=0.001;
+  else if(lenU.includes('CENTI'))scale=0.01;
+  else if(lenU.includes('MICRO'))scale=1e-6;
   setP(70,'Objekte...');
   const objs=[];
   // Bewehrung kann je nach Export als IFCREINFORCINGBAR oder als generischer
@@ -1633,19 +1644,12 @@ let snapIndicatorRing=null;
 const barSnapCache=new Map();
 let measureDisplayScale=1; // corrects for IFC unit mismatch
 
-// Auto-detect IFC unit mismatch by checking scene bounding box size.
-// parseIFC applies scale=0.001 for MILLI IFCs → scene should be in metres.
-// If an exporter wrongly declares MILLI but stores metre coords, the scene
-// ends up 1000× too small (maxDim < 0.1). If scale was never applied the
-// scene is in mm (maxDim > 500). Both cases need a correction factor.
+// Die Längeneinheit wird in parseIFC korrekt aus IFCUNITASSIGNMENT bestimmt,
+// d.h. die Szene liegt immer in echten Metern vor – daher Anzeige-Faktor 1.
+// (Frühere bbox-Heuristik entfernt: sie hat große Modelle wie eine 667-m-Brücke
+// fälschlich als mm interpretiert und Messwerte um Faktor 1000 verfälscht.)
 function calibrateMeasureScale(){
-  if(!meshes.length){measureDisplayScale=1;return;}
-  const bb=new THREE.Box3();meshes.forEach(m=>bb.expandByObject(m));
-  const s=bb.getSize(new THREE.Vector3());
-  const mx=Math.max(s.x,s.y,s.z);
-  if(mx>500)     measureDisplayScale=0.001; // scene in mm → display in m
-  else if(mx<0.1)measureDisplayScale=1000;  // scene in km → display in m
-  else           measureDisplayScale=1;     // scene already in m ✓
+  measureDisplayScale=1;
 }
 
 function getMR(){
@@ -2036,8 +2040,12 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.6';
+const APP_VERSION='1.7';
 const APP_CHANGELOG=[
+  {v:'1.7', date:'2026-06-30', notes:[
+    'Maßstab korrigiert: Längeneinheit wird jetzt aus IFCUNITASSIGNMENT bestimmt (Dateien mit mehreren Einheiten METRE/MILLI/CENTI ergaben falsche Maße)',
+    'Fragile Größen-Heuristik entfernt – große Modelle (z.B. 667-m-Brücke) wurden fälschlich als mm gemessen',
+  ]},
   {v:'1.6', date:'2026-06-29', notes:[
     'Mess-Punkte werden jetzt konstant klein angezeigt (feste Bildschirmgröße statt Modellgröße) – vorher bei großen Modellen viel zu groß',
   ]},
