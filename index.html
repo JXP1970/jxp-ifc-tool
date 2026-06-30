@@ -202,7 +202,7 @@ select.sb-inp{appearance:none}
 <div class="panel" id="panelViewer">
   <div class="vw">
     <div class="v-sb">
-      <div class="sb-head"><div class="sb-label">Positionen</div></div>
+      <div class="sb-head"><div class="sb-label">Positionen</div><div style="font-size:13.5px;color:var(--muted);margin-top:2px">Mehrere antippbar</div></div>
       <div class="sb-list" id="vList"><div style="padding:14px 12px;color:var(--muted);font-size:15px">–</div></div>
       <div class="sb-foot" id="vFoot">–</div>
     </div>
@@ -633,6 +633,7 @@ let lastTouchEnd=0; // unterdrückt den vom Browser nach touchend erzeugten Synt
 const MARK_COL=new THREE.Color(0xff4400);
 const marked=new Set();
 let markedHidden=false,ghostMode=false;
+const visGroups=new Set(); // im Viewer ausgewählte Gruppen (leer = alle anzeigen)
 const DEFAULT_INFO=['Pos_Nr.','Stabdurchmesser','NominalDiameter','BarLength','Masse','Materialguete','LAYER','Werkstoff','Shape code','BarDistance','BarCount'];
 let infoKeys=new Set(DEFAULT_INFO),infoAllKeys=[],lastInfoUD=null;
 let sumKeys=new Set(['BarCount','BarLength','Masse']),sumAllKeys=[];
@@ -770,19 +771,20 @@ function updateV3D(){
     applyVis(m);
     if(!posG[g])posG[g]={color:cmap[g],cnt:0};posG[g].cnt++;
   }
+  // stale Gruppen aus Auswahl entfernen (z.B. nach Wechsel des Gruppier-Feldes)
+  for(const g of [...visGroups])if(!posG[g])visGroups.delete(g);
   const vl=document.getElementById('vList');vl.innerHTML='';
-  const ai=document.createElement('div');ai.className='si active';
+  const ai=document.createElement('div');ai.className='si'+(visGroups.size===0?' active':'');
   ai.innerHTML='<div class="si-dot" style="background:#4a5570"></div><span>Alle</span><span class="si-cnt">'+meshes.length+'</span>';
-  ai.addEventListener('click',()=>{allVis();document.querySelectorAll('#vList .si').forEach(i=>i.classList.remove('active'));ai.classList.add('active');});
+  ai.addEventListener('click',()=>{visGroups.clear();applyGroupFilter();syncGroupActive();});
   vl.appendChild(ai);
   Object.entries(posG).sort((a,b)=>{const an=parseInt(a[0]),bn=parseInt(b[0]);return isNaN(an)||isNaN(bn)?a[0].localeCompare(b[0]):an-bn;}).forEach(([g,d])=>{
-    const item=document.createElement('div');item.className='si';
+    const item=document.createElement('div');item.className='si'+(visGroups.has(g)?' active':'');item.dataset.grp=g;
     const lbl=g.length>18?g.slice(0,16)+'...':g;
     item.innerHTML='<div class="si-dot" style="background:'+d.color+'"></div><span title="'+esc(g)+'">'+esc(lbl)+'</span><span class="si-cnt">'+d.cnt+'</span>';
-    item.addEventListener('click',()=>{
-      document.querySelectorAll('#vList .si').forEach(i=>i.classList.remove('active'));item.classList.add('active');
-      meshes.forEach(m=>{m.userData.hidden=m.userData.grp!==g||(markedHidden&&marked.has(m.userData.id));applyVis(m);});
-    });
+    function toggle(){if(visGroups.has(g))visGroups.delete(g);else visGroups.add(g);applyGroupFilter();syncGroupActive();}
+    item.addEventListener('click',toggle);
+    item.addEventListener('touchend',e=>{e.preventDefault();toggle();},{passive:false});
     vl.appendChild(item);
   });
   document.getElementById('vFoot').textContent=Object.keys(posG).length+' Gr.';
@@ -796,7 +798,23 @@ function applyVis(m){
     else{m.visible=false;m.material.opacity=1;m.material.transparent=false;}
   } else {m.visible=true;m.material.opacity=1;m.material.transparent=false;}
 }
-function allVis(){meshes.forEach(m=>{m.userData.hidden=markedHidden&&marked.has(m.userData.id);applyVis(m);});}
+function allVis(){visGroups.clear();meshes.forEach(m=>{m.userData.hidden=markedHidden&&marked.has(m.userData.id);applyVis(m);});syncGroupActive();}
+// Sichtbarkeit nach Mehrfach-Auswahl: leer = alle, sonst nur gewählte Gruppen
+function applyGroupFilter(){
+  meshes.forEach(m=>{
+    const inSel=visGroups.size===0||visGroups.has(m.userData.grp);
+    m.userData.hidden=!inSel||(markedHidden&&marked.has(m.userData.id));
+    applyVis(m);
+  });
+}
+// Aktiv-Markierung der Listeneinträge an visGroups angleichen
+function syncGroupActive(){
+  const vl=document.getElementById('vList');if(!vl)return;
+  vl.querySelectorAll('.si').forEach(i=>{
+    if(i.dataset.grp!==undefined)i.classList.toggle('active',visGroups.has(i.dataset.grp));
+    else i.classList.toggle('active',visGroups.size===0); // "Alle"
+  });
+}
 
 const rc=new THREE.Raycaster();const mouse=new THREE.Vector2();
 function doRaycast(cx,cy){
@@ -866,7 +884,7 @@ function showVInfo(ud){
 
 document.getElementById('hbReset').addEventListener('click',()=>{const box=new THREE.Box3();meshes.forEach(m=>box.expandByObject(m));if(!box.isEmpty())oc.fitTo(box);});
 document.getElementById('hbTop').addEventListener('click',()=>{const box=new THREE.Box3();meshes.forEach(m=>box.expandByObject(m));if(!box.isEmpty()){const c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3());oc.target.copy(c);oc.sph.radius=Math.max(s.x,s.z)*2;oc.sph.phi=.01;oc.sph.theta=0;oc.sync();}});
-document.getElementById('hbAll').addEventListener('click',()=>{document.querySelectorAll('#vList .si').forEach(i=>i.classList.remove('active'));document.querySelector('#vList .si').classList.add('active');allVis();});
+document.getElementById('hbAll').addEventListener('click',()=>{allVis();});
 document.getElementById('hbGhost').addEventListener('click',()=>{ghostMode=!ghostMode;document.getElementById('hbGhost').classList.toggle('ghost-on',ghostMode);meshes.forEach(m=>applyVis(m));});
 document.getElementById('hbClear').addEventListener('click',()=>{
   marked.clear();markedHidden=false;isolateMode=false;
@@ -2040,8 +2058,11 @@ makeResizable(document.getElementById('mpSettings'),    200,150);
 // Für ein Update: APP_VERSION hochzählen und oben einen neuen Eintrag in
 // APP_CHANGELOG ergänzen (neueste Version zuerst). Das Badge im Header und
 // der Versionsverlauf aktualisieren sich automatisch.
-const APP_VERSION='1.7';
+const APP_VERSION='1.8';
 const APP_CHANGELOG=[
+  {v:'1.8', date:'2026-06-30', notes:[
+    'Viewer: Mehrfachauswahl von Gruppen – mehrere Werte (z.B. BA_1 + BA_11) gleichzeitig anzeigen; erneutes Antippen blendet wieder aus, „Alle" zeigt alles',
+  ]},
   {v:'1.7', date:'2026-06-30', notes:[
     'Maßstab korrigiert: Längeneinheit wird jetzt aus IFCUNITASSIGNMENT bestimmt (Dateien mit mehreren Einheiten METRE/MILLI/CENTI ergaben falsche Maße)',
     'Fragile Größen-Heuristik entfernt – große Modelle (z.B. 667-m-Brücke) wurden fälschlich als mm gemessen',
